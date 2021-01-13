@@ -438,6 +438,24 @@ abstract class Model implements ObjectInterface, \JsonSerializable, \ArrayAccess
     }
 
     /**
+     * Shorthand update an object if it is instantiated with app context.
+     *
+     * @throws Exception
+     *
+     * @return Response|null
+     */
+    public function update()
+    {
+        if ($this->_application === null) {
+            throw new Exception(
+                '->update() is only available on objects that have an injected application context.'
+            );
+        }
+
+        return $this->_application->update($this);
+    }
+
+    /**
      * Shorthand delete an object if it is instantiated with app context.
      *
      * @throws Exception

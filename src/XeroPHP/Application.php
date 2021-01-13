@@ -318,6 +318,58 @@ class Application
     }
 
     /**
+     * @param Remote\Model $object
+     * @param bool $replace_data
+     *
+     * @throws Exception
+     *
+     * @return Remote\Response|null
+     */
+    public function update(Remote\Model $object, $replace_data = false)
+    {
+        //Saves any properties that don't want to be included in the normal loop
+        //(special saving endpoints)
+        $this->savePropertiesDirectly($object);
+
+        if (!$object->isDirty()) {
+            return null;
+        }
+
+        $object->validate();
+
+        if ($object->hasGUID()) {
+            $method = $object::supportsMethod(Request::METHOD_POST) ? Request::METHOD_POST : Request::METHOD_PUT;
+            $uri = sprintf('%s/%s', $object::getResourceURI(), $object->getGUID());
+        } else {
+            //In this case it's new
+            $method = $object::supportsMethod(Request::METHOD_POST) ? Request::METHOD_POST : Request::METHOD_PUT;
+            $uri = $object::getResourceURI();
+            //@todo, bump version so you must create objects with app context.
+            $object->setApplication($this);
+        }
+
+        if (!$object::supportsMethod($method)) {
+            throw new Exception(sprintf('%s doesn\'t support [%s] via the API', get_class($object), $method));
+        }
+
+        //Put in an array with the first level containing only the 'root node'.
+        $data = [$object::getRootNodeName() => $object->toStringArray(true)];
+        $url = new URL($this, $uri, $object::getAPIStem());
+        $request = new Request($this, $url, $method);
+
+        $request->setBody(Helpers::arrayToXML($data))->send();
+        $response = $request->getResponse();
+
+        if (false !== $element = current($response->getElements())) {
+            $object->fromStringArray($element, $replace_data);
+        }
+        //Mark the object as clean since no exception was thrown
+        $object->setClean();
+
+        return $response;
+    }
+
+    /**
      * @param array|Collection $objects
      * @param mixed $checkGuid
      * @param mixed $replace_data
